@@ -121,7 +121,7 @@ withFile' path mode f = do
   return rslt
 
 solveRPN :: (Num a) => String -> a
-solveRPN s = validate . foldl $ rpnStack [] (words s)
+solveRPN s = validate . foldl $ rpnStack (Left []) (words s)
  where
   validate (Left (n : [])) = n
   validate (Left _) = error "invalid rpn expression"
