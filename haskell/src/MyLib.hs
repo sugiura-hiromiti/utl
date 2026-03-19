@@ -2,7 +2,7 @@ module MyLib (
   module MyLib.Basic,
   module MyLib.DataType,
   module MyLib.ClassAndInstance,
-  module ThinkFunctionaly,
+  module MyLib.ThinkFunctionaly,
 ) where
 
 import MyLib.Basic

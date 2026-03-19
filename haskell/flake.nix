@@ -46,7 +46,6 @@
                 echo -e "haskell-language-server: $(which haskell-language-server-wrapper 2>/dev/null || echo 'not found')"
                 echo -e "\033[0m"
                 cabal update
-                hoogle generate
               '';
             };
           };

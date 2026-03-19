@@ -27,3 +27,6 @@ spec = do
 
       it "car" $
         MyLib.tellCar Car{company = "toyota", model = "plius", year = (2525 :: Int)} `shouldBe` "this car \"plius\" from \"toyota\"was made in 2525"
+
+      it "solveRpn" $
+        map MyLib.solveRpn ["1 2 3 + 4 - +", "10 4 3 + 2 * -", "1 2", "5", "1 + 2 3", "%"] `shouldBe` [Right (2 :: Double), Right (-4 :: Double), Left $ InvalidSyntax NumberRemain, Right (5 :: Double), Left $ InvalidSyntax SignRemain, Left UnparsableToken]

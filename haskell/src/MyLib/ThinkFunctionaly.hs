@@ -1,26 +1,25 @@
-module Mylib.ThinkFunctionaly where
+module MyLib.ThinkFunctionaly where
 
-import Data.Function ((&))
+import Control.Monad (foldM)
 import Text.Read (readMaybe)
 
-solveRpn :: (Num a) => String -> Either a String
-solveRpn = words
+solveRpn :: (Num a, Read a, Fractional a) => String -> Either SolverError a
+solveRpn expr = parseTokens (words expr) >>= eval
 
-parseTokens :: (Num a) => [String] -> Either ParseError [Token a]
-parseTokens ts = foldl pushOnRight (Right []) (ts & map parseToken)
- where
-  pushOnRight acc (Right token) = fmap (++ [token]) acc
-  pushOnRight _ (Left e) = Left e
+parseTokens :: (Num a, Read a) => [String] -> Either SolverError [Token a]
+parseTokens = traverse parseToken
 
-data ParseError = UnparsableToken String
+data SolverError = UnparsableToken | InvalidSyntax Invalidity
+  deriving (Show, Eq)
+data Invalidity = NumberRemain | SignRemain
+  deriving (Show, Eq)
 data Token i = N i | Sig Sign
 
-parseToken :: (Num a) => String -> Either ParseError (Token a)
-parseToken t = case parseNum t of
-  Just a -> Right (N a)
-  Nothing -> case parseSign t of
-    Just s -> Right (Sig s)
-    Nothing -> Left (UnparsableToken "failed to parse rpn expression")
+parseToken :: (Num a, Read a) => String -> Either SolverError (Token a)
+parseToken t = case (parseNum t, parseSign t) of
+  (Just a, _) -> Right (N a)
+  (_, Just s) -> Right (Sig s)
+  _ -> Left UnparsableToken
 
 parseNum :: (Num a, Read a) => String -> Maybe a
 parseNum = readMaybe
@@ -28,7 +27,7 @@ parseNum = readMaybe
 data Sign = Plus | Neg | Mul | Div
 
 class NumOp o where
-  op :: (Num a) => o -> a -> a -> a
+  op :: (Num a, Fractional a) => o -> a -> a -> a
 
 instance NumOp Sign where
   op Plus = (+)
@@ -43,8 +42,14 @@ parseSign "*" = Just Mul
 parseSign "/" = Just Div
 parseSign _ = Nothing
 
-consumeTokenStream :: (Num a) => [Token a] -> [Token a]
-consumeTokenStream = foldl evalNextToken []
+eval :: (Num a, Fractional a) => [Token a] -> Either SolverError a
+eval ts = do
+  stack <- foldM evalNextToken [] ts
+  case stack of
+    [x] -> Right x
+    _ -> Left $ InvalidSyntax NumberRemain
 
-evalNextToken :: (Num a) => [Token a] -> Token a -> [Token a]
-evalNextToken ts (Sig sign) = op sign
+evalNextToken :: (Num a, Fractional a) => [a] -> Token a -> Either SolverError [a]
+evalNextToken (a : b : acc) (Sig sign) = Right $ (op sign b a) : acc
+evalNextToken acc (N i) = Right $ i : acc
+evalNextToken _ _ = Left $ InvalidSyntax SignRemain
