@@ -1,2 +1,6 @@
 .direnv/
 dist-newstyle/
+dist-hls-test/
+.tmp-cache/
+.tmp-home/
+.tmp-cabal/

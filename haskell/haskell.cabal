@@ -66,12 +66,14 @@ library
         MyLib.DataType
         MyLib.ClassAndInstance
         MyLib.ThinkFunctionaly
+        MyLib.ThinkFunctionaly.SolveRpn
+        MyLib.ThinkFunctionaly.HeathrowToLondon
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:    bytestring ^>=0.12.2.0, base ^>=4.20.2.0
+    build-depends:    bytestring ^>=0.12.2.0, base ^>=4.20.2.0, containers
 
     -- Directories containing source files.
     hs-source-dirs:   src
