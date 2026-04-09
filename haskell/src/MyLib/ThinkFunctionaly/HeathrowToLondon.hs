@@ -1,80 +1,104 @@
-module MyLib.ThinkFunctionaly.HeathrowToLondon (heathrowToLondon) where
+module MyLib.ThinkFunctionaly.HeathrowToLondon (heathrowToLondon, Route (..), Node (..), Side (..), HeathrowSolverError (..), InvalidDistListKind (..)) where
 
-data SolverError a = InvalidDistList (InvalidDistListKind a)
-data InvalidDistListKind a = Empty | ExcessedPath [a]
+import Data.List.NonEmpty (NonEmpty (..))
 
-type Rslt a b = Either (SolverError a) b
+data HeathrowSolverError a = InvalidDistList (InvalidDistListKind a)
+  deriving (Eq, Show)
+
+data InvalidDistListKind a = Empty | TrailingDistances [a]
+  deriving (Eq, Show)
+
+type Rslt a b = Either (HeathrowSolverError a) b
 
 heathrowToLondon :: (Num a, Ord a) => [a] -> Rslt a (Route a)
-heathrowToLondon xs = parseDistList xs >>= Right . shortestRoute . consumeUnits
+heathrowToLondon = fmap (shortestRoute . consumeUnits) . parseDistList
 
 data Node = Node Side Int
+  deriving (Eq, Show)
 
 data Side = A | B
-    deriving (Enum)
+  deriving (Eq, Show)
+
+otherSide :: Side -> Side
+otherSide A = B
+otherSide B = A
 
 data Unit a = Unit
-    { distA :: a
-    , distB :: a
-    , distVertical :: a
-    }
+  { distA :: a,
+    distB :: a,
+    distVertical :: a
+  }
 
 data Route a = Route
-    { nodeHistory :: [Node]
-    , dist :: a
-    }
+  { nodeHistory :: NonEmpty Node,
+    dist :: a
+  }
+  deriving (Eq, Show)
 
 data Step a = Step
-    { a :: Route a
-    , b :: Route a
-    }
+  { routeA :: Route a,
+    routeB :: Route a
+  }
 
-parseDistList :: (Num a) => [a] -> Rslt a [Unit a]
+parseDistList :: [a] -> Rslt a [Unit a]
 parseDistList [] = Left (InvalidDistList Empty)
 parseDistList xs = parseUnits xs
 
-parseUnits :: (Num a) => [a] -> Rslt a [Unit a]
-parseUnits [] = Right []
-parseUnits (a : b : c : xs) = parseUnits xs >>= \x -> Right (Unit{distA = a, distB = b, distVertical = c} : x)
-parseUnits x = Left $ InvalidDistList $ ExcessedPath x
+parseUnits :: [a] -> Rslt a [Unit a]
+parseUnits [] = pure []
+parseUnits (a : b : c : xs) = parseUnits xs >>= \x -> pure (Unit {distA = a, distB = b, distVertical = c} : x)
+parseUnits x = Left $ InvalidDistList $ TrailingDistances x
 
 consumeUnits :: (Num a, Ord a) => [Unit a] -> Step a
-consumeUnits units = foldl (flip consumeUnit) initStep units
+consumeUnits units = foldl' consumeUnit initStep units
   where
-    initStep = Step{a = Route{nodeHistory = [Node A 0], dist = 0}, b = Route{nodeHistory = [Node B 0], dist = 0}}
+    initStep = Step {routeA = initRoute A, routeB = initRoute B}
+    initRoute s = Route {nodeHistory = Node s 0 :| [], dist = 0}
 
-consumeUnit :: (Num a, Ord a) => Unit a -> Step a -> Step a
-consumeUnit Unit{distA, distB, distVertical} Step{a = Route{nodeHistory = nhA, dist = dA}, b = Route{nodeHistory = nhB, dist = dB}} =
-    updateStep (srToA, srToB) (nextDistA, nextDistB) (nhA, nhB)
+consumeUnit :: (Num a, Ord a) => Step a -> Unit a -> Step a
+consumeUnit Step {routeA = Route {nodeHistory = nhA, dist = dA}, routeB = Route {nodeHistory = nhB, dist = dB}} Unit {distA, distB, distVertical} =
+  updateStep (srToA, srToB) (nextDistA, nextDistB) (nhA, nhB)
   where
     aToA = dA + distA
     aToB = aToA + distVertical
     bToB = dB + distB
     bToA = bToB + distVertical
     (srToA, nextDistA) = case aToA > bToA of
-        True -> (Switch, bToA)
-        False -> (Straight, aToA)
+      True -> (Switch, bToA)
+      False -> (Straight, aToA)
     (srToB, nextDistB) = case bToB > aToB of
-        True -> (Switch, aToB)
-        False -> (Straight, bToB)
+      True -> (Switch, aToB)
+      False -> (Straight, bToB)
 
 data StepRoute = Straight | Switch
 
-updateStep :: (Num a, Ord a) => (StepRoute, StepRoute) -> (a, a) -> ([Node], [Node]) -> Step a
-updateStep (srA, srB) (dA, dB) (nhA, nhB) = Step{a = updateRoute srA dA nhA, b = updateRoute srB dB nhB}
+updateStep :: (StepRoute, StepRoute) -> (a, a) -> (NonEmpty Node, NonEmpty Node) -> Step a
+updateStep (srA, srB) (dA, dB) (nhA, nhB) =
+  Step
+    { routeA = updateRoute srA dA nhA nhB,
+      routeB = updateRoute srB dB nhB nhA
+    }
 
-updateRoute :: (Num a, Ord a) => StepRoute -> a -> [Node] -> Route a
-updateRoute sr d nh = Route{nodeHistory = updateNodeHistory sr nh, dist = d}
+updateRoute :: StepRoute -> a -> NonEmpty Node -> NonEmpty Node -> Route a
+updateRoute sr d currentNodeHistory otherNodeHistory =
+  Route
+    { nodeHistory = updateNodeHistory sr currentNodeHistory otherNodeHistory,
+      dist = d
+    }
 
-updateNodeHistory :: StepRoute -> [Node] -> [Node]
-updateNodeHistory sr (Node s n : xs) =
-    let hist = (Node s (n + 1)) : (Node s n) : xs
-     in case sr of
-            Straight -> hist
-            Switch -> (Node (succ s) (n + 1)) : hist
-updateNodeHistory _ [] = []
+updateNodeHistory :: StepRoute -> NonEmpty Node -> NonEmpty Node -> NonEmpty Node
+updateNodeHistory sr currentNodeHistory otherNodeHistory =
+  case sr of
+    Straight -> straight currentNodeHistory
+    Switch -> switch otherNodeHistory
+  where
+    straight (Node s n :| xs) = (Node s (n + 1)) :| (Node s n : xs)
+    switch (Node s n :| xs) =
+      (Node (otherSide s) (n + 1)) :| (Node s (n + 1) : Node s n : xs)
 
-shortestRoute :: (Num a, Ord a) => Step a -> Route a
-shortestRoute Step{a, b} = case dist a < dist b of
-    True -> a
-    False -> b
+shortestRoute :: (Ord a) => Step a -> Route a
+shortestRoute Step {routeA, routeB}
+  | dist routeA < dist routeB = routeA
+  | dist routeB < dist routeA = routeB
+  | length (nodeHistory routeA) <= length (nodeHistory routeB) = routeA
+  | otherwise = routeB

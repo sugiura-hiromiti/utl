@@ -68,6 +68,7 @@ library
         MyLib.ThinkFunctionaly
         MyLib.ThinkFunctionaly.SolveRpn
         MyLib.ThinkFunctionaly.HeathrowToLondon
+        MyLib.Functors
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
